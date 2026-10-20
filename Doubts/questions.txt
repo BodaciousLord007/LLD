@@ -1,0 +1,3 @@
+Why Virtual Destructor is needed?
+Why Explicit Keywords help us?
+Can final keyword function be derived
