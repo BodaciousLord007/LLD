@@ -1,13 +1,12 @@
-﻿Remaining issues in Week 3/Assignment
+﻿Week 3 Assignment status after Phase 2 fixes
 
-BlockingJobQueue.hpp
-File is empty; the blocking queue has not been implemented.
+Phase 2 queue flow
+- JobQueue protects push and tryPop with a mutex.
+- main.cpp creates one producer thread that queues 100 jobs.
+- The main thread polls tryPop, sleeps briefly when the queue is empty, and executes each retrieved job through SingleThreadJobEngine.
+- The consumer stops after 100 jobs, then joins the producer thread.
+- Polling can still waste CPU; that is expected before adding a condition variable.
 
-ThreadPool.hpp
-File is empty; the thread pool has not been implemented.
-
-Fixed from the earlier issue list
-- Job.hpp now includes <string>, uses std::string, and defines the pure virtual destructor.
-- Removed using namespace std from Job.hpp.
-- main.cpp now uses automatic objects instead of raw new allocations and comma-separated deletes.
-- Removed the unused <thread> include from main.cpp.
+Not implemented yet
+- BlockingJobQueue.hpp is empty.
+- ThreadPool.hpp is empty.

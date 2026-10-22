@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Job.hpp"
-class SingleThreadJobEngine
-{
+
+class SingleThreadJobEngine {
 public:
-    JobResult executeNow(Job& job){
+    JobResult executeNow(Job& job) {
         return job.run();
     }
 };
