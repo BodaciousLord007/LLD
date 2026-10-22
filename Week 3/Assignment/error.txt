@@ -1,0 +1,13 @@
+﻿Remaining issues in Week 3/Assignment
+
+BlockingJobQueue.hpp
+File is empty; the blocking queue has not been implemented.
+
+ThreadPool.hpp
+File is empty; the thread pool has not been implemented.
+
+Fixed from the earlier issue list
+- Job.hpp now includes <string>, uses std::string, and defines the pure virtual destructor.
+- Removed using namespace std from Job.hpp.
+- main.cpp now uses automatic objects instead of raw new allocations and comma-separated deletes.
+- Removed the unused <thread> include from main.cpp.
