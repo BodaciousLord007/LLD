@@ -1,60 +1,117 @@
-#include <chrono>
-#include <exception>
-#include <functional>
 #include <iostream>
-#include <memory>
 #include <thread>
-
+#include "BlockingJobQueue.hpp"
 #include "Jobs.hpp"
 #include "SingleThreadJobEngine.hpp"
+#include <chrono>
+#include <utility>
+#include <memory>
 
-void producer(JobQueue& queue, int jobCount) {
-    for (int i = 0; i < jobCount; ++i) {
-        if (i % 2 == 0) {
-            queue.push(std::make_unique<primeCountJob>(100, 200));
-        } else {
-            queue.push(std::make_unique<sumRangeJob>(100, 200));
+JobQueue q;
+
+void producer(int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        if (i % 2)
+        {
+            q.push(std::make_unique<sumRangeJob>(100, 200));
+        }
+        else
+        {
+            q.push(std::make_unique<primeCountJob>(100, 200));
         }
     }
 }
 
-int main() {
-    constexpr int jobCount = 100;
-    JobQueue queue;
-    SingleThreadJobEngine engine;
-
-    // Phase 1: Test jobs directly through the single-threaded engine.
-    sumRangeJob sumTest(1, 10);
-    primeCountJob primeTest(1, 100);
-    failingJob failureTest;
-
-    engine.executeNow(sumTest);
-    engine.executeNow(primeTest);
-    try {
-        engine.executeNow(failureTest);
-    } catch (const std::exception& error) {
-        std::cout << "Expected job failure: " << error.what() << '\n';
+void producer(BlockingJobQueue &queue, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        if (i % 2)
+        {
+            queue.push(std::make_unique<sumRangeJob>(100, 200));
+        }
+        else
+        {
+            queue.push(std::make_unique<primeCountJob>(100, 200));
+        }
     }
+}
 
-    // Phase 2: Consume jobs from the mutex-protected shared queue.
-    std::thread producerThread(producer, std::ref(queue), jobCount);
+int main()
+{
+    // Phase 1: Testing
+    /*
+    SingleThreadJobEngine jbEngine;
+    sumRangeJob s(1, 10);
+    primeCountJob p(1, 100);
+    failingJob f;
 
-    int completed = 0;
-    while (completed < jobCount) {
-        std::unique_ptr<Job> job = queue.tryPop();
-        if (!job) {
-            // This phase polls the queue; a later condition-variable version
-            // can wake the consumer without periodic checking.
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
+    jbEngine.executeNow(s);
+    jbEngine.executeNow(p);
+    jbEngine.executeNow(f);
+    */
+    // f.run();
+
+    // Phase 2:Testing
+    /*
+    std::thread worker(producer, 100);
+    worker.detach();
+
+    SingleThreadJobEngine engine;
+    for(int i = 0; i < 100; i++){
+        while(1){
+            auto j = q.tryPop();
+            if(j == nullptr){
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            else{
+                engine.executeNow(*j);
+                break;
+            }
+        }
+    }
+    */
+    // Phase 3 Testing
+
+    BlockingJobQueue queue;
+    constexpr int jobsPerProducer = 5;
+
+    auto produceJobs = [&queue](int count)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            if (i % 2 == 0)
+            {
+                queue.push(std::make_unique<primeCountJob>(100, 200));
+            }
+            else
+            {
+                queue.push(std::make_unique<sumRangeJob>(100, 200));
+            }
+        }
+    };
+
+    std::thread consumer([&queue]
+                         {
+        while (auto job = queue.pop()) {
+            JobResult result = job->run();
+            std::cout << "Consumer result: "
+                      << (result.success ? "success" : "failure")
+                      << ", " << result.message
+                      << ", value = " << result.value << '\n';
         }
 
-        JobResult result = engine.executeNow(*job);
-        std::cout << "Completed job " << completed + 1 << ": "
-                  << result.message << ", value = " << result.value << '\n';
-        ++completed;
-    }
+        std::cout << "Consumer exiting: queue is shut down and empty.\n"; });
 
-    producerThread.join();
+    std::thread producer1(produceJobs, jobsPerProducer);
+    std::thread producer2(produceJobs, jobsPerProducer);
+
+    producer1.join();
+    producer2.join();
+
+    queue.shutdown();
+    consumer.join();
     return 0;
 }

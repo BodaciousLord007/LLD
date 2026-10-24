@@ -7,6 +7,37 @@ Phase 2 queue flow
 - The consumer stops after 100 jobs, then joins the producer thread.
 - Polling can still waste CPU; that is expected before adding a condition variable.
 
-Not implemented yet
-- BlockingJobQueue.hpp is empty.
-- ThreadPool.hpp is empty.
+Phase 3 BlockingJobQueue errors in Job.hpp, line by line
+
+- `std::condition_variable cv;`
+  - This member is needed for the blocking queue. Make sure `<condition_variable>` is included.
+- `bool stopped = false;`
+  - Correct initial state: the queue accepts jobs until shutdown is called.
+- `if(stopped == false)return;` in `push()`
+  - Error: this returns during normal operation, so it drops every job. Remove this condition.
+- `if(stopped == false)return;` in `push()`
+  - Error: it reads `stopped` without locking `m`, causing a data race if `push()` and `shutdown()` happen concurrently.
+- `std::lock_guard<std::mutex> lk(m);` and `q.push(...)` in `push()`
+  - Keep these inside a scope so the lock is released before notifying.
+- `cv.notify_one();` in `push()`
+  - Correct: notify one waiting consumer after adding a job and releasing the lock.
+- `std::unique_lock<std::mutex> lk(m);` in `pop()`
+  - Correct: `condition_variable::wait` requires a `unique_lock`.
+- `cv.wait(lk, ...);` in `pop()`
+  - Use the predicate `!q.empty() || stopped`. It handles spurious wakeups and checks both reasons for waking.
+- `if(stopped == true)return nullptr;` in `pop()`
+  - Error: shutdown may happen while jobs are still queued. Returning here discards those jobs.
+- `q.front()` in `pop()`
+  - Only access the front after checking that the queue is not both stopped and empty.
+- `shutdown()` sets `stopped = true` while holding `m`
+  - Correct: this synchronizes the state change with `push()` and `pop()`.
+- `cv.notify_all();` in `shutdown()`
+  - Correct: wake every consumer so each can exit once the queue is empty.
+
+Correct `push()` behavior
+- Lock `m`, move the job into `q`, unlock, then call `cv.notify_one()`.
+
+Correct `pop()` behavior
+- Wait with `!q.empty() || stopped`.
+- Return `nullptr` only when `stopped` is true and `q` is empty.
+- Otherwise move the front job out, remove it from the queue, and return it.
